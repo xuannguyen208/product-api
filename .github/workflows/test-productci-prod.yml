@@ -9,6 +9,10 @@ on:
       - main
 
 jobs:
+
+  # =========================
+  # JOB 1: CI + PUSH DOCKER HUB
+  # =========================
   integration-test:
     runs-on: ubuntu-latest
 
@@ -28,6 +32,7 @@ jobs:
       MONGO_URI: mongodb://127.0.0.1:27017/productdb
 
     steps:
+
       - name: Checkout source code
         uses: actions/checkout@v4
 
@@ -55,6 +60,7 @@ jobs:
               echo "Product API is healthy"
               exit 0
             fi
+
             echo "Waiting for Product API..."
             sleep 2
           done
@@ -85,3 +91,71 @@ jobs:
       - name: Show Product API logs
         if: always()
         run: cat server.log || true
+
+
+  # ==================================
+  # JOB 2: DEPLOY VỀ LOCAL DOCKER ENGINE
+  # ==================================
+  deploy-local:
+    needs: integration-test
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    runs-on: self-hosted
+
+    steps:
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Check Docker
+        run: docker version
+
+      - name: Pull latest Docker image
+        run: docker compose -f docker-compose-prod.yaml pull
+
+      - name: Deploy to local Docker Engine
+        run: docker compose -f docker-compose-prod.yaml up -d --force-recreate
+
+      - name: Wait for containers
+        shell: powershell
+        run: |
+          Start-Sleep -Seconds 20
+          docker compose -f docker-compose-prod.yaml ps
+
+      - name: Check Product API health
+        shell: powershell
+        run: |
+          $maxAttempts = 15
+
+          for ($i = 1; $i -le $maxAttempts; $i++) {
+
+            try {
+              $response = Invoke-WebRequest `
+                -Uri "http://localhost:3000/health" `
+                -UseBasicParsing
+
+              if ($response.StatusCode -eq 200) {
+                Write-Host "Product API is healthy"
+                exit 0
+              }
+            }
+            catch {
+              Write-Host "Waiting for Product API..."
+            }
+
+            Start-Sleep -Seconds 2
+          }
+
+          Write-Host "Product API healthcheck failed"
+
+          docker compose -f docker-compose-prod.yaml ps
+          docker logs product-api
+
+          exit 1
+
+      - name: Verify deployed image
+        run: docker inspect product-api --format="{{.Config.Image}}"
+
+      - name: Show running containers
+        run: docker compose -f docker-compose-prod.yaml ps
