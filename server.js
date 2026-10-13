@@ -21,11 +21,31 @@ app.get('/', (req, res) => {
   });
 });
 
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    message: 'Product API is healthy'
-  });
+app.get('/health', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      throw new Error('MongoDB is not connected');
+    }
+
+    await mongoose.connection.db.admin().command(
+      { ping: 1 },
+      { timeoutMS: 2000 }
+    );
+
+    return res.status(200).json({
+      status: 'OK',
+      server: 'UP',
+      database: 'CONNECTED',
+      message: 'Product API is healthy'
+    });
+  } catch (error) {
+    return res.status(503).json({
+      status: 'ERROR',
+      server: 'UP',
+      database: 'UNAVAILABLE',
+      message: 'MongoDB health check failed'
+    });
+  }
 });
 
 // Kết nối MongoDB
