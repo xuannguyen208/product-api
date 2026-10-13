@@ -1,5 +1,5 @@
 const BASE_URL = 'http://127.0.0.1:3000/api/products';
-
+const TEST_PID = `CI-${require('node:crypto').randomUUID()}`;
 function check(condition, message) {
   if (!condition) {
     throw new Error(message);
@@ -32,7 +32,7 @@ async function runTests() {
   let result = await send(BASE_URL, {
     method: 'POST',
     body: JSON.stringify({
-      pid: 'CI001',
+      pid: TEST_PID,
       pname: 'CI Product',
       price: 100000,
       quantity: 10
@@ -48,7 +48,7 @@ async function runTests() {
 
   check(result.response.status === 200, 'GET ALL thất bại');
   check(
-    result.data.data.some(product => product.pid === 'CI001'),
+    result.data.data.some(product => product.pid === TEST_PID),
     'Không tìm thấy CI001'
   );
 
@@ -56,16 +56,16 @@ async function runTests() {
 
   console.log('3. TEST GET PRODUCT BY PID');
 
-  result = await send(`${BASE_URL}/CI001`);
+  result = await send(`${BASE_URL}/${TEST_PID}`);
 
   check(result.response.status === 200, 'GET BY PID thất bại');
-  check(result.data.data.pid === 'CI001', 'Sai pid');
+  check(result.data.data.pid === TEST_PID, 'Sai pid');
 
   console.log('GET BY PID PASSED');
 
   console.log('4. TEST UPDATE PRODUCT');
 
-  result = await send(`${BASE_URL}/CI001`, {
+  result = await send(`${BASE_URL}/${TEST_PID}`, {
     method: 'PUT',
     body: JSON.stringify({
       pname: 'CI Product Updated',
@@ -81,14 +81,23 @@ async function runTests() {
 
   console.log('5. TEST DELETE PRODUCT');
 
-  result = await send(`${BASE_URL}/CI001`, {
+  result = await send(`${BASE_URL}/${TEST_PID}`, {
     method: 'DELETE'
   });
 
   check(result.response.status === 200, 'DELETE thất bại');
 
   console.log('DELETE PASSED');
+  console.log('6. TEST GET DELETED PRODUCT');
 
+result = await send(`${BASE_URL}/${TEST_PID}`);
+
+check(
+  result.response.status === 404,
+  'Sản phẩm vẫn còn sau khi DELETE hoặc API trả sai mã trạng thái'
+);
+
+console.log('GET DELETED PRODUCT PASSED');
   console.log('ALL CRUD TESTS PASSED');
 }
 
